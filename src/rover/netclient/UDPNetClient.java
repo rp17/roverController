@@ -11,6 +11,9 @@ import java.net.Socket;
 import java.net.DatagramPacket;
 import java.net.UnknownHostException;
 
+import android.os.Bundle;
+import android.os.Message;
+
 import rover.control.ServoControlActivity;
 
 public class UDPNetClient implements IPIDClient {
@@ -20,8 +23,10 @@ public class UDPNetClient implements IPIDClient {
     // timeout used when waiting in receive()
 	private static final int PACKET_SIZE = 1024;  // max size of a message
 	
+	ServoControlActivity sca; 
+	
 	volatile boolean active = true;
-	private DatagramSocket socket = null;
+	DatagramSocket socket = null;
 	private int SERVER_PORT = 5000;
 	private String SERVER_IP = null;
 	private InetAddress serverAddr = null;
@@ -29,12 +34,16 @@ public class UDPNetClient implements IPIDClient {
 	//private PrintWriter out;  // output to the server
 	//private BufferedReader in;
 	
+	public UDPNetClient(ServoControlActivity context) {
+		sca = context;
+	}
+	
 	public boolean serverConnect(String serverIP, int port) throws UnknownHostException, IOException {
 		SERVER_IP = serverIP;
 		SERVER_PORT = port;
 		if(SERVER_IP != null) {
 			serverAddr = InetAddress.getByName(SERVER_IP);
-			socket = new DatagramSocket();
+			socket = new DatagramSocket(SERVER_PORT);
 			//socket.setSoTimeout(TIME_OUT);
 			
 			return true;
@@ -47,13 +56,15 @@ public class UDPNetClient implements IPIDClient {
 	  {
 		//if(socket == null) return;
 	    try {
+	    	
 	      DatagramPacket sendPacket =
-	          new DatagramPacket( msg.getBytes(), msg.length(), 
-	   						serverAddr, SERVER_PORT);
+	          new DatagramPacket(msg.getBytes(), msg.length(), serverAddr, SERVER_PORT);
 	      socket.send( sendPacket );
+	    
 	    }
-	    catch(IOException ioe)
-	    {  System.out.println(ioe);  }
+	    catch(IOException ioe) {  
+	    	System.out.println(ioe);  
+	    }
 	  } // end of sendServerMessage()
 	  
 	  private String readServerMessage()
@@ -65,19 +76,27 @@ public class UDPNetClient implements IPIDClient {
 	      byte[] data = new byte[PACKET_SIZE];
 	      DatagramPacket receivePacket = new DatagramPacket(data, data.length);
 
-	      socket.receive( receivePacket );  // wait for a packet
-	      msg = new String( receivePacket.getData(), 0,
-	                           receivePacket.getLength() );
+	      socket.receive(receivePacket);  // wait for a packet
+	      msg = new String(receivePacket.getData(), 0, receivePacket.getLength());
 	    }
-	    catch(IOException ioe)
-	    {  System.out.println(ioe);  }
+	    catch(IOException ioe) {  
+	    	System.out.println(ioe);  
+	    }
 
 	    return msg;
 	  }  // end of readServerMessage()
 	    
 	public void run() {
+		
 		while(active) {
 			int azimut = ServoControlActivity.avgAzimut;
+			
+			//double androidLat = ServoControlActivity.android_GPS_Lat;
+			//double androidLon = ServoControlActivity.android_GPS_Lon;
+			
+			//double skyhookLat = ServoControlActivity.skyhook_GPS_Lat;
+			//double skyhookLon = ServoControlActivity.skyhook_GPS_Lon;
+			
 			sendServerMessage(Integer.toString(azimut));
 			/*
 			try {
@@ -88,19 +107,50 @@ public class UDPNetClient implements IPIDClient {
 			}
 			*/
 			String msg = readServerMessage();
+			
 			if(msg == null) {
 				System.out.println("Received null from server");
 				continue;
 			}
-			try {
-				cmd = Integer.parseInt(msg);
+			else {
+		
+				String param[] = msg.split(" ");
+				if(param.length > 1) {
+					
+					cmd = Integer.parseInt(param[0]);
+					
+					int s = Integer.parseInt(param[1]);
+					
+					sca.setSpeed(s);
+					
+					/*
+					Message mesg = sca.handler.obtainMessage();
+					Bundle bundle = new Bundle();
+					bundle.putInt("speed", s);
+					mesg.setData(bundle);
+					sca.handler.sendMessage(mesg);
+						*/			
+				}
+				else {
+					try {
+						
+						cmd = Integer.parseInt(msg);
+						//sca.setSpeed(10);
+						
+						/*
+						Message mesg = sca.handler.obtainMessage();
+						Bundle bundle = new Bundle();
+						bundle.putInt("speed", 10);
+						mesg.setData(bundle);
+						sca.handler.sendMessage(mesg);
+						*/
+						
+					}
+					catch(NumberFormatException ex) {
+						System.out.println(ex.getMessage());
+					}
+				}				
 			}
-			catch(NumberFormatException ex) {
-				System.out.println(ex.getMessage());
-			}
-			
-			
-			
 		}
 		
 			//in.close();

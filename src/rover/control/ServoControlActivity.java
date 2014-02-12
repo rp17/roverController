@@ -10,10 +10,14 @@ import ioio.lib.util.IOIOLooper;
 import ioio.lib.util.android.IOIOActivity;
 import ioio.lib.android.bluetooth.*;
 import net.mitchtech.ioio.servocontrol.R;
+import android.content.Context;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
@@ -39,12 +43,13 @@ import rover.netclient.TCPNetClient;
 import rover.netclient.UDPNetClient;
 
 //public class ServoControlActivity extends AbstractIOIOActivity {
-public class ServoControlActivity extends IOIOActivity implements SensorEventListener {
+public class ServoControlActivity extends IOIOActivity implements SensorEventListener, LocationListener {
 	public final static int NOCMD = 0;
 	public final static int FORWARD = 1;
 	public final static int BACKWARD = 2;
 	public final static int LEFT = 3;
 	public final static int RIGHT = 4;
+	public final static int STOP = 5;
 	public final static int MANUAL = -1;
 	public volatile int command = MANUAL;
 	
@@ -79,7 +84,7 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	private TextView txtViewSensor1;
 	private static final ExecutorService singleClientPool = Executors.newSingleThreadExecutor();
 	
-	private UDPNetClient clientLoop = new UDPNetClient();
+	private UDPNetClient clientLoop = new UDPNetClient(this);
 	private static float sensors[];
 	
 	private SensorManager mSensorManager;
@@ -90,6 +95,19 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	static volatile float azimutPre = 0.0f;
 	static final float azimutGain = 0.7f;
 	public static volatile int avgAzimut = 0;
+	
+	
+	private LocationManager locationManager;
+	
+	public static double android_GPS_Lat = 0;
+	public static double android_GPS_Lon = 0;
+	public static double skyhook_GPS_Lat = 0;
+	public static double skyhook_GPS_Lon = 0;
+	
+	
+	public static ToggleButton togSkyHookAccuracy;
+	public static TextView txtAndroidGPS;
+	private TextView txtSkyHookGPS;
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -116,6 +134,26 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
     	magnetometer = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
     	mSensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
 	    mSensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_GAME);
+	    
+	    
+	    
+	    /** Android GPS 
+	     *  Gps Location Service LocationManager Object 
+	     */
+	    txtAndroidGPS = (TextView) findViewById(R.id.androidGPS);
+	    
+	    locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        locationManager.requestLocationUpdates( LocationManager.GPS_PROVIDER,
+                0,   // Immediate
+                0, this);
+        
+        /** SkyHook GPS
+         *
+         */
+        txtSkyHookGPS = (TextView) findViewById(R.id.skyHookGPS);
+        togSkyHookAccuracy = (ToggleButton) findViewById(R.id.skyHookTogButton);
+	    
+	    
 	    
 		try {
         	boolean res = clientLoop.serverConnect(SERVER_IP, SERVER_PORT);
@@ -189,20 +227,25 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 			});
 		}
 
-		public void loop() throws ConnectionLostException {
+public void loop() throws ConnectionLostException {
+			
+			updateGPS_UI();
+			
 			command = clientLoop.cmd;
-			if(command == MANUAL) {
+			if(command == MANUAL) {		// MANUAL
 				SPEED = sBar.getProgress();
 				try {
 					setText("" + sensor1.read());
-					if(bForward.isPressed() || bBackward.isPressed()){
+					if(bForward.isPressed() || bBackward.isPressed()) {
+						
+						// Manual Forward
 						if(bForward.isPressed()){
 							direction1.write(true);
 							direction2.write(false);
 							direction3.write(true);
 							direction4.write(false);
-						}
-						else{
+						} 
+						else {	// Manual Backward
 							direction1.write(false);
 							direction2.write(true);
 							direction3.write(false);
@@ -214,27 +257,29 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 						if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
 						if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 					}
-					else if(bLeft.isPressed()){
-						direction1.write(true);
-						direction2.write(false);
-						direction3.write(false);
-						direction4.write(true);
+					else if(bLeft.isPressed() || bRight.isPressed()) {
+						
+						
+						// Manual Left				
+						if(bLeft.isPressed()){
+							direction1.write(false);
+							direction2.write(true);
+							direction3.write(true);
+							direction4.write(false);
+						}
+						else { 	// Manual Right
+							direction1.write(true);
+							direction2.write(false);
+							direction3.write(false);
+							direction4.write(true);	
+						}
+						//pulseWidth range 0 - 1500
 						if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
 						if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
 						if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
 						if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 					}
-					else if(bRight.isPressed()){
-						direction1.write(false);
-						direction2.write(true);
-						direction3.write(true);
-						direction4.write(false);
-						if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
-						if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
-						if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
-						if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
-					}
-					else{
+					else {	// Stop
 						pwmMotor1.setPulseWidth(0);
 						pwmMotor2.setPulseWidth(0);
 						pwmMotor3.setPulseWidth(0);
@@ -248,18 +293,21 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 				throw e;
 			}
 		}
-		else {
-			SPEED = clientLoop.SPEED;
+		else {	// REMOTE
+			
 			try {
 				setText("" + sensor1.read());
 				if(command == FORWARD || command == BACKWARD){
-					if(command == FORWARD){
+					if(command == FORWARD) {
+						
+						// Server Command - Forward
 						direction1.write(true);
 						direction2.write(false);
 						direction3.write(true);
 						direction4.write(false);
 					}
-					else{
+					else {
+						// Server Command - Backward
 						direction1.write(false);
 						direction2.write(true);
 						direction3.write(false);
@@ -271,27 +319,28 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 					if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
 					if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 				}
-				else if(command == LEFT){
-					direction1.write(true);
-					direction2.write(false);
-					direction3.write(false);
-					direction4.write(true);
-					if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
-					if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
-					if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
-					if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
-				}
-				else if(command == RIGHT){
+				else if(command == LEFT || command == RIGHT) {
+					
+					// Server Command - Left
+					if(command == LEFT) {
 					direction1.write(false);
 					direction2.write(true);
 					direction3.write(true);
 					direction4.write(false);
+					}
+					else {	// Server Command - Right
+						direction1.write(true);
+						direction2.write(false);
+						direction3.write(false);
+						direction4.write(true);	
+					}
+					
 					if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
 					if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
 					if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
 					if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 				}
-				else{
+				else if (command == STOP) {	// Stop
 					pwmMotor1.setPulseWidth(0);
 					pwmMotor2.setPulseWidth(0);
 					pwmMotor3.setPulseWidth(0);
@@ -387,4 +436,71 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
             }
 	   
 	}
+	
+    public void updateGPS_UI() {
+    	
+    	
+    	runOnUiThread(new Runnable(){
+		 		@Override
+		 		public void run() {
+		 			txtAndroidGPS.setText("Android GPS: lat " + android_GPS_Lat + ", " + android_GPS_Lon);
+
+		 			txtSkyHookGPS.setText("SkyHook GPS: lat " + skyhook_GPS_Lat + ", " + skyhook_GPS_Lon);
+		 		}
+		 	});
+    	
+    }
+	
+	
+	
+	@Override
+	protected void onResume() {
+		super.onResume();
+		try {
+			boolean res = clientLoop.serverConnect(SERVER_IP, SERVER_PORT);
+		} catch (UnknownHostException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+    
+	/**  Android GPS Required Methods */
+
+	@Override
+	public void onLocationChanged(Location location) {
+		// TODO Auto-generated method stub
+		android_GPS_Lat = location.getLatitude();
+		android_GPS_Lon = location.getLongitude();
+	}
+
+	@Override
+	public void onProviderDisabled(String provider) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onProviderEnabled(String provider) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onStatusChanged(String provider, int status, Bundle extras) {
+		// TODO Auto-generated method stub
+		
+	}
+	
+	public void setSpeed(int s) {
+		
+		/*if(clientLoop.cmd != MANUAL) {
+			SPEED = s;
+		}*/
+	}
+	
+	
 }

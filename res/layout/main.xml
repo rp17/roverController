@@ -170,5 +170,23 @@
 	        android:layout_height="wrap_content">
 	    </TextView>
 	</LinearLayout>
+	
+	<TextView
+        android:id="@+id/androidGPS"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"/>
+	
+	<TextView
+        android:id="@+id/skyHookGPS"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"/>
+    
+    <ToggleButton
+        android:id="@+id/skyHookTogButton"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:textOn="Accuracy On"
+        android:textOff="Accuracy Off"
+        android:checked="true" />
 
 </LinearLayout>
