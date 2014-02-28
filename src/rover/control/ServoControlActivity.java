@@ -19,6 +19,8 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -43,20 +45,24 @@ import rover.netclient.TCPNetClient;
 import rover.netclient.UDPNetClient;
 
 //public class ServoControlActivity extends AbstractIOIOActivity {
-public class ServoControlActivity extends IOIOActivity implements SensorEventListener, LocationListener {
+public class ServoControlActivity extends IOIOActivity implements SensorEventListener, LocationListener, SeekBar.OnSeekBarChangeListener {
 	public final static int NOCMD = 0;
 	public final static int FORWARD = 1;
 	public final static int BACKWARD = 2;
 	public final static int LEFT = 3;
 	public final static int RIGHT = 4;
 	public final static int STOP = 5;
+	public final static int SLIGHTRIGHT = 6;
+	public final static int SLIGHTLEFT = 7;
 	public final static int MANUAL = -1;
 	public volatile int command = MANUAL;
+	public static int TURN = 0;
+	private volatile int steer = TURN;
 	
-	private final int MOTOR1 = 11;
-	private final int MOTOR2 = 12;
-	private final int MOTOR3 = 13;
-	private final int MOTOR4 = 14;
+	private final int MOTOR1 = 11;		// Left-Front, forward true
+	private final int MOTOR2 = 12;		// Left-Rear, forward false
+	private final int MOTOR3 = 13;		// Right-Front, forward true 
+	private final int MOTOR4 = 14;		// Right-Rear, forward false
 	private final int DIRECTION1 = 3;
 	private final int DIRECTION2 = 6;
 	private final int DIRECTION3 = 7;
@@ -67,7 +73,7 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	private int SPEED = 1500;
 	
 	private int SERVER_PORT = 5000;
-	private String SERVER_IP = "192.168.1.4";
+	private String SERVER_IP = "192.168.1.8";
 	
 	private Button bForward;
 	private Button bBackward;
@@ -80,6 +86,7 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	private ToggleButton tMotor4;
 	
 	private SeekBar sBar;
+	private SeekBar sBar_steer;
 	
 	private TextView txtViewSensor1;
 	private static final ExecutorService singleClientPool = Executors.newSingleThreadExecutor();
@@ -104,10 +111,26 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	public static double skyhook_GPS_Lat = 0;
 	public static double skyhook_GPS_Lon = 0;
 	
+	float origSteerProgress;
+	public static int steerPercent = 0;
+	
 	
 	public static ToggleButton togSkyHookAccuracy;
 	public static TextView txtAndroidGPS;
 	private TextView txtSkyHookGPS;
+	
+    public Handler handler = new Handler() {
+		  @Override
+		  public void handleMessage(Message msg) { 
+
+			Bundle bundle = msg.getData();
+			int cmd = bundle.getInt("command");
+			int spd = bundle.getInt("speed");
+			float tn = bundle.getFloat("turn");
+	
+			txtAndroidGPS.setText("command: " + cmd + ", speed: " + spd + " turn: " + tn);
+		  }
+	};
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -125,6 +148,12 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 		tMotor4 = (ToggleButton) findViewById(R.id.tgMotor4);
 		
 		sBar = (SeekBar) findViewById(R.id.seekBar1);
+		sBar_steer = (SeekBar) findViewById(R.id.seekBar2);
+		sBar_steer.setProgress(sBar_steer.getMax()/2);
+		origSteerProgress = sBar_steer.getMax()/2;
+		sBar_steer.setOnSeekBarChangeListener(this);
+		
+		
 		
 		txtViewSensor1 = (TextView) findViewById(R.id.txtVoltage);
 		sensors = new float[5];
@@ -232,11 +261,21 @@ public void loop() throws ConnectionLostException {
 			updateGPS_UI();
 			
 			command = clientLoop.cmd;
+			steer = clientLoop.turn;
+			
 			if(command == MANUAL) {		// MANUAL
+				
+				//sBar_steer.setVisibility(View.VISIBLE);
 				SPEED = sBar.getProgress();
+				
 				try {
 					setText("" + sensor1.read());
 					if(bForward.isPressed() || bBackward.isPressed()) {
+						
+						
+						
+						
+						
 						
 						// Manual Forward
 						if(bForward.isPressed()){
@@ -258,26 +297,26 @@ public void loop() throws ConnectionLostException {
 						if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 					}
 					else if(bLeft.isPressed() || bRight.isPressed()) {
+		
+							// Manual Left				
+							if(bLeft.isPressed()){
+								direction1.write(false);
+								direction2.write(true);
+								direction3.write(true);
+								direction4.write(false);
+							}
+							else { 	// Manual Right
+								direction1.write(true);
+								direction2.write(false);
+								direction3.write(false);
+								direction4.write(true);	
+							}
+							//pulseWidth range 0 - 1500
+							if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
+							if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
+							if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
+							if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 						
-						
-						// Manual Left				
-						if(bLeft.isPressed()){
-							direction1.write(false);
-							direction2.write(true);
-							direction3.write(true);
-							direction4.write(false);
-						}
-						else { 	// Manual Right
-							direction1.write(true);
-							direction2.write(false);
-							direction3.write(false);
-							direction4.write(true);	
-						}
-						//pulseWidth range 0 - 1500
-						if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
-						if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
-						if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
-						if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 					}
 					else {	// Stop
 						pwmMotor1.setPulseWidth(0);
@@ -295,9 +334,12 @@ public void loop() throws ConnectionLostException {
 		}
 		else {	// REMOTE
 			
+			//sBar_steer.setVisibility(View.INVISIBLE); 
+			
 			try {
 				setText("" + sensor1.read());
-				if(command == FORWARD || command == BACKWARD){
+				
+					
 					if(command == FORWARD) {
 						
 						// Server Command - Forward
@@ -305,40 +347,94 @@ public void loop() throws ConnectionLostException {
 						direction2.write(false);
 						direction3.write(true);
 						direction4.write(false);
+						
+						//pulseWidth range 0 - 1500
+						if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
+						if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
+						if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
+						if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
+						
 					}
-					else {
+					
+					else if(command == BACKWARD) {
 						// Server Command - Backward
 						direction1.write(false);
 						direction2.write(true);
 						direction3.write(false);
 						direction4.write(true);
+						
+						//pulseWidth range 0 - 1500
+						if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
+						if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
+						if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
+						if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 					}
+
+				else if(command == SLIGHTLEFT) {
+					
+					// Server Command - Forward
+					direction1.write(true);
+					direction2.write(false);
+					direction3.write(true);
+					direction4.write(false);
+					
+					float diffRatio = (float) (100 - steerPercent) * 0.01f;
+					
+					int LSPEED = (int) (((float) SPEED) * diffRatio);
+					
+					//pulseWidth range 0 - 1500
+					if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(LSPEED);
+					if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(LSPEED);
+					if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
+					if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
+					
+						
+				}	
+				else if(command == SLIGHTRIGHT) {
+					
+					// Server Command - Forward
+					direction1.write(true);
+					direction2.write(false);
+					direction3.write(true);
+					direction4.write(false);
+					
+					float diffRatio = (float) (100 - steerPercent) * 0.01f;
+					
+					int RSPEED = (int) (((float) SPEED) * diffRatio);
+					
 					//pulseWidth range 0 - 1500
 					if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
 					if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
-					if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
-					if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
+					if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(RSPEED);
+					if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(RSPEED);
+					
+						
 				}
+					
+					
+					
 				else if(command == LEFT || command == RIGHT) {
 					
-					// Server Command - Left
-					if(command == LEFT) {
-					direction1.write(false);
-					direction2.write(true);
-					direction3.write(true);
-					direction4.write(false);
-					}
-					else {	// Server Command - Right
-						direction1.write(true);
-						direction2.write(false);
-						direction3.write(false);
-						direction4.write(true);	
-					}
+						// Server Command - Left
+						if(command == LEFT) {
+							direction1.write(false);
+							direction2.write(true);
+							direction3.write(true);
+							direction4.write(false);
+							
+						}
+						else {	// Server Command - Right
+							direction1.write(true);
+							direction2.write(false);
+							direction3.write(false);
+							direction4.write(true);	
+						}
+						
+						if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
+						if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
+						if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
+						if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 					
-					if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
-					if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
-					if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
-					if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
 				}
 				else if (command == STOP) {	// Stop
 					pwmMotor1.setPulseWidth(0);
@@ -354,7 +450,44 @@ public void loop() throws ConnectionLostException {
 			throw e;
 		}
 		}
-	 }	
+	 }
+
+	void steer() throws ConnectionLostException {
+		
+		if(command == RIGHT) {	// right turn
+			
+			direction1.write(true);
+			direction2.write(false);
+			direction3.write(false);
+			direction4.write(true);	
+			
+			if(tMotor1.isChecked()) pwmMotor1.setPulseWidth((int)(SPEED * steerPercent));
+			if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
+			if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
+			if(tMotor4.isChecked()) pwmMotor4.setPulseWidth((int)(SPEED * steerPercent));
+			
+		} else if(command == LEFT) {	// left turn
+			
+			direction1.write(false);
+			direction2.write(true);
+			direction3.write(true);
+			direction4.write(false);
+			
+			if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
+			if(tMotor2.isChecked()) pwmMotor2.setPulseWidth((int)(SPEED * steerPercent));
+			if(tMotor3.isChecked()) pwmMotor3.setPulseWidth((int)(SPEED * steerPercent));
+			if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
+			
+		}
+		
+		// Reset turn to false
+		TURN = 0;
+		
+		// Reset command to forward
+		command = FORWARD;
+	}
+
+
 	}
 	
 	@Override
@@ -438,20 +571,15 @@ public void loop() throws ConnectionLostException {
 	}
 	
     public void updateGPS_UI() {
-    	
-    	
     	runOnUiThread(new Runnable(){
 		 		@Override
 		 		public void run() {
-		 			txtAndroidGPS.setText("Android GPS: lat " + android_GPS_Lat + ", " + android_GPS_Lon);
+		 			//txtAndroidGPS.setText("Android GPS: lat " + android_GPS_Lat + ", " + android_GPS_Lon);
 
 		 			txtSkyHookGPS.setText("SkyHook GPS: lat " + skyhook_GPS_Lat + ", " + skyhook_GPS_Lon);
 		 		}
 		 	});
-    	
     }
-	
-	
 	
 	@Override
 	protected void onResume() {
@@ -497,10 +625,32 @@ public void loop() throws ConnectionLostException {
 	
 	public void setSpeed(int s) {
 		
-		/*if(clientLoop.cmd != MANUAL) {
+		if(clientLoop.cmd != MANUAL) {
 			SPEED = s;
-		}*/
+		}
 	}
 	
+	public void setTurn(int t) {
+		
+		if(clientLoop.cmd != MANUAL) {
+			steerPercent = t;
+		}
+	}
+	
+	/** Unimplemented methods for Seekbar sBar_steer */
+    @Override
+    public void onProgressChanged(SeekBar arg0, int progress, boolean fromTouch) {
+    	
+    	// steerPercent = ((float) origSteerProgress - (float) progress) / (float) sBar_steer.getMax();
+    }
+    
+    
+    @Override
+    public void onStartTrackingTouch(SeekBar arg0) {}
+    
+    @Override
+    public void onStopTrackingTouch(SeekBar arg0) {
+    	origSteerProgress = sBar_steer.getProgress();
+    }
 	
 }

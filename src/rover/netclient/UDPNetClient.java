@@ -17,8 +17,9 @@ import android.os.Message;
 import rover.control.ServoControlActivity;
 
 public class UDPNetClient implements IPIDClient {
-	public volatile int SPEED = 1500;
+	// public volatile int SPEED = 1500;
 	public volatile int cmd = ServoControlActivity.MANUAL;
+	public volatile int turn = ServoControlActivity.TURN;
 	private static final int TIME_OUT = 5000;   // 5 secs
     // timeout used when waiting in receive()
 	private static final int PACKET_SIZE = 1024;  // max size of a message
@@ -115,35 +116,63 @@ public class UDPNetClient implements IPIDClient {
 			else {
 		
 				String param[] = msg.split(" ");
-				if(param.length > 1) {
+				
+				// remote command and Speed Request
+				if(param.length == 2) {
 					
+					// set command
 					cmd = Integer.parseInt(param[0]);
 					
+					// set speed
 					int s = Integer.parseInt(param[1]);
+					sca.setSpeed(s);					
 					
-					sca.setSpeed(s);
-					
-					/*
 					Message mesg = sca.handler.obtainMessage();
 					Bundle bundle = new Bundle();
+					bundle.putInt("command", cmd);
 					bundle.putInt("speed", s);
 					mesg.setData(bundle);
 					sca.handler.sendMessage(mesg);
-						*/			
+					
 				}
+				// remote command, Speed, and Turn request
+				if(param.length == 3) {
+					
+					// set command
+					cmd = Integer.parseInt(param[0]);
+					
+					// set speed
+					int s = Integer.parseInt(param[1]);
+					sca.setSpeed(s);
+					
+					// set turn
+					turn = 1;
+					int turnPercentage = Integer.parseInt(param[2]);
+					sca.setTurn(turnPercentage);
+					
+					
+					Message mesg = sca.handler.obtainMessage();
+					Bundle bundle = new Bundle();
+					bundle.putInt("command", cmd);
+					bundle.putInt("speed", s);
+					bundle.putFloat("turn", turnPercentage);
+					mesg.setData(bundle);
+					sca.handler.sendMessage(mesg);
+					
+				}
+				// only setting to remote command
 				else {
 					try {
 						
-						cmd = Integer.parseInt(msg);
-						//sca.setSpeed(10);
+						// set command
+						cmd = Integer.parseInt(msg);						
 						
-						/*
 						Message mesg = sca.handler.obtainMessage();
 						Bundle bundle = new Bundle();
-						bundle.putInt("speed", 10);
+						bundle.putInt("command", cmd);
 						mesg.setData(bundle);
 						sca.handler.sendMessage(mesg);
-						*/
+						
 						
 					}
 					catch(NumberFormatException ex) {
