@@ -16,7 +16,7 @@ import android.os.Message;
 
 import rover.control.ServoControlActivity;
 
-public class UDPNetClient implements IPIDClient {
+public class UDPUpdater implements IPIDClient {
 	// public volatile int SPEED = 1500;
 	public volatile int cmd = ServoControlActivity.MANUAL;
 	public volatile int turn = ServoControlActivity.TURN;
@@ -28,14 +28,14 @@ public class UDPNetClient implements IPIDClient {
 	
 	volatile boolean active = true;
 	DatagramSocket socket = null;
-	private int SERVER_PORT = 5000;
+	private int SERVER_PORT = 5001;
 	private String SERVER_IP = null;
 	private InetAddress serverAddr = null;
 	
 	//private PrintWriter out;  // output to the server
 	//private BufferedReader in;
 	
-	public UDPNetClient(ServoControlActivity context) {
+	public UDPUpdater(ServoControlActivity context) {
 		sca = context;
 	}
 	
@@ -90,96 +90,19 @@ public class UDPNetClient implements IPIDClient {
 	public void run() {
 		
 		while(active) {
-			//int azimut = ServoControlActivity.avgAzimut;
+			int azimut = ServoControlActivity.avgAzimut;
+		
 			
-			//double androidLat = ServoControlActivity.android_GPS_Lat;
-			//double androidLon = ServoControlActivity.android_GPS_Lon;
+			sendServerMessage(Integer.toString(azimut));
 			
-			//double skyhookLat = ServoControlActivity.skyhook_GPS_Lat;
-			//double skyhookLon = ServoControlActivity.skyhook_GPS_Lon;
-			
-			//sendServerMessage(Integer.toString(azimut));
-			/*
 			try {
 				Thread.sleep(10);
 			}
 			catch(InterruptedException ex){
 				active = false;
 			}
-			*/
-			String msg = readServerMessage();
-			
-			if(msg == null) {
-				System.out.println("Received null from server");
-				continue;
-			}
-			else {
-		
-				String param[] = msg.split(" ");
-				
-				// remote command and Speed Request
-				if(param.length == 2) {
-					
-					// set command
-					cmd = Integer.parseInt(param[0]);
-					
-					// set speed
-					int s = Integer.parseInt(param[1]);
-					sca.setSpeed(s);					
-					
-					Message mesg = sca.handler.obtainMessage();
-					Bundle bundle = new Bundle();
-					bundle.putInt("command", cmd);
-					bundle.putInt("speed", s);
-					mesg.setData(bundle);
-					sca.handler.sendMessage(mesg);
-					
-				}
-				// remote command, Speed, and Turn request
-				if(param.length == 3) {
-					
-					// set command
-					cmd = Integer.parseInt(param[0]);
-					
-					// set speed
-					int s = Integer.parseInt(param[1]);
-					sca.setSpeed(s);
-					
-					// set turn
-					turn = 1;
-					int turnPercentage = Integer.parseInt(param[2]);
-					sca.setTurn(turnPercentage);
-					
-					
-					Message mesg = sca.handler.obtainMessage();
-					Bundle bundle = new Bundle();
-					bundle.putInt("command", cmd);
-					bundle.putInt("speed", s);
-					bundle.putFloat("turn", turnPercentage);
-					mesg.setData(bundle);
-					sca.handler.sendMessage(mesg);
-					
-				}
-				// only setting to remote command
-				else {
-					try {
 						
-						// set command
-						cmd = Integer.parseInt(msg);						
-						
-						Message mesg = sca.handler.obtainMessage();
-						Bundle bundle = new Bundle();
-						bundle.putInt("command", cmd);
-						mesg.setData(bundle);
-						sca.handler.sendMessage(mesg);
-						
-						
-					}
-					catch(NumberFormatException ex) {
-						System.out.println(ex.getMessage());
-					}
-				}				
-			}
+
 		}
 		
 			//in.close();
@@ -187,3 +110,4 @@ public class UDPNetClient implements IPIDClient {
 			socket.close();
 	}
 }
+

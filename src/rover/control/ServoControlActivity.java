@@ -43,6 +43,7 @@ import java.io.IOException;
 import rover.netclient.IPIDClient;
 import rover.netclient.TCPNetClient;
 import rover.netclient.UDPNetClient;
+import rover.netclient.UDPUpdater;
 
 //public class ServoControlActivity extends AbstractIOIOActivity {
 public class ServoControlActivity extends IOIOActivity implements SensorEventListener, LocationListener, SeekBar.OnSeekBarChangeListener {
@@ -73,6 +74,8 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	private int SPEED = 1500;
 	
 	private int SERVER_PORT = 5000;
+	private int SERVER_PORT2 = 5001;
+	
 	private String SERVER_IP = "192.168.1.8";
 	
 	private Button bForward;
@@ -90,8 +93,12 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	
 	private TextView txtViewSensor1;
 	private static final ExecutorService singleClientPool = Executors.newSingleThreadExecutor();
+	private static final ExecutorService singleUpdatePool = Executors.newSingleThreadExecutor();
+
+	
 	
 	private UDPNetClient clientLoop = new UDPNetClient(this);
+	private UDPUpdater updateLoop = new UDPUpdater(this);
 	private static float sensors[];
 	
 	private SensorManager mSensorManager;
@@ -186,8 +193,14 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	    
 		try {
         	boolean res = clientLoop.serverConnect(SERVER_IP, SERVER_PORT);
+        
         	if(res) {
         		singleClientPool.execute(clientLoop);
+        	}
+        	
+        	boolean resUpdater = updateLoop.serverConnect(SERVER_IP, SERVER_PORT2);
+        	if(resUpdater) {
+        		singleUpdatePool.execute(updateLoop);
         	}
         }
         catch(final UnknownHostException ex) {
