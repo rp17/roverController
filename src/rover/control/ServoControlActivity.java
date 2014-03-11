@@ -57,8 +57,6 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	public final static int SLIGHTLEFT = 7;
 	public final static int MANUAL = -1;
 	public volatile int command = MANUAL;
-	public static int TURN = 0;
-	private volatile int steer = TURN;
 	
 	private final int MOTOR1 = 11;		// Left-Front, forward true
 	private final int MOTOR2 = 12;		// Left-Rear, forward false
@@ -73,8 +71,8 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	
 	private int SPEED = 1500;
 	
-	private int SERVER_PORT = 5000;
-	private int SERVER_PORT2 = 5001;
+	private int SERVER_PORT = 49005;
+	private int SERVER_PORT2 = 49006;
 	
 	private String SERVER_IP = "192.168.1.8";
 	
@@ -119,7 +117,9 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	public static double skyhook_GPS_Lon = 0;
 	
 	float origSteerProgress;
-	public static int steerPercent = 0;
+	public int steerPercent = 0;
+	public int desiredCourse = 0;
+	public int duration = 0;
 	
 	
 	public static ToggleButton togSkyHookAccuracy;
@@ -133,9 +133,11 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 			Bundle bundle = msg.getData();
 			int cmd = bundle.getInt("command");
 			int spd = bundle.getInt("speed");
-			float tn = bundle.getFloat("turn");
+			float tn = bundle.getInt("turn");
+			int dc = bundle.getInt("desiredcourse"); 
+			int dur = bundle.getInt("duration");
 	
-			txtAndroidGPS.setText("command: " + cmd + ", speed: " + spd + " turn: " + tn);
+			txtAndroidGPS.setText("command: " + cmd + ", speed: " + spd + " turn: " + tn + " cousre: " + dc + " duration: " + dur);
 		  }
 	};
 	
@@ -192,16 +194,17 @@ public class ServoControlActivity extends IOIOActivity implements SensorEventLis
 	    
 	    
 		try {
+			boolean resUpdater = updateLoop.serverConnect(SERVER_IP, SERVER_PORT2);
+        	if(resUpdater) {
+        		singleUpdatePool.execute(updateLoop);
+        	}
         	boolean res = clientLoop.serverConnect(SERVER_IP, SERVER_PORT);
         
         	if(res) {
         		singleClientPool.execute(clientLoop);
         	}
         	
-        	boolean resUpdater = updateLoop.serverConnect(SERVER_IP, SERVER_PORT2);
-        	if(resUpdater) {
-        		singleUpdatePool.execute(updateLoop);
-        	}
+        	
         }
         catch(final UnknownHostException ex) {
         	runOnUiThread(new Runnable(){
@@ -274,7 +277,6 @@ public void loop() throws ConnectionLostException {
 			updateGPS_UI();
 			
 			command = clientLoop.cmd;
-			steer = clientLoop.turn;
 			
 			if(command == MANUAL) {		// MANUAL
 				
@@ -284,11 +286,6 @@ public void loop() throws ConnectionLostException {
 				try {
 					setText("" + sensor1.read());
 					if(bForward.isPressed() || bBackward.isPressed()) {
-						
-						
-						
-						
-						
 						
 						// Manual Forward
 						if(bForward.isPressed()){
@@ -465,42 +462,6 @@ public void loop() throws ConnectionLostException {
 		}
 	 }
 
-	void steer() throws ConnectionLostException {
-		
-		if(command == RIGHT) {	// right turn
-			
-			direction1.write(true);
-			direction2.write(false);
-			direction3.write(false);
-			direction4.write(true);	
-			
-			if(tMotor1.isChecked()) pwmMotor1.setPulseWidth((int)(SPEED * steerPercent));
-			if(tMotor2.isChecked()) pwmMotor2.setPulseWidth(SPEED);
-			if(tMotor3.isChecked()) pwmMotor3.setPulseWidth(SPEED);
-			if(tMotor4.isChecked()) pwmMotor4.setPulseWidth((int)(SPEED * steerPercent));
-			
-		} else if(command == LEFT) {	// left turn
-			
-			direction1.write(false);
-			direction2.write(true);
-			direction3.write(true);
-			direction4.write(false);
-			
-			if(tMotor1.isChecked()) pwmMotor1.setPulseWidth(SPEED);
-			if(tMotor2.isChecked()) pwmMotor2.setPulseWidth((int)(SPEED * steerPercent));
-			if(tMotor3.isChecked()) pwmMotor3.setPulseWidth((int)(SPEED * steerPercent));
-			if(tMotor4.isChecked()) pwmMotor4.setPulseWidth(SPEED);
-			
-		}
-		
-		// Reset turn to false
-		TURN = 0;
-		
-		// Reset command to forward
-		command = FORWARD;
-	}
-
-
 	}
 	
 	@Override
@@ -644,11 +605,25 @@ public void loop() throws ConnectionLostException {
 	}
 	
 	public void setTurn(int t) {
-		
 		if(clientLoop.cmd != MANUAL) {
 			steerPercent = t;
 		}
 	}
+	
+	
+	public void setDuration(int d) {
+		if(clientLoop.cmd != MANUAL) {
+			duration = d;
+		}
+	}
+	
+	public void setDesiredCourse(int dc) {
+		if(clientLoop.cmd != MANUAL) {
+			desiredCourse = dc;
+		}
+	}
+	
+	
 	
 	/** Unimplemented methods for Seekbar sBar_steer */
     @Override

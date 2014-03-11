@@ -19,7 +19,6 @@ import rover.control.ServoControlActivity;
 public class UDPNetClient implements IPIDClient {
 	// public volatile int SPEED = 1500;
 	public volatile int cmd = ServoControlActivity.MANUAL;
-	public volatile int turn = ServoControlActivity.TURN;
 	private static final int TIME_OUT = 5000;   // 5 secs
     // timeout used when waiting in receive()
 	private static final int PACKET_SIZE = 1024;  // max size of a message
@@ -28,7 +27,7 @@ public class UDPNetClient implements IPIDClient {
 	
 	volatile boolean active = true;
 	DatagramSocket socket = null;
-	private int SERVER_PORT = 5000;
+	private int SERVER_PORT = 49005;
 	private String SERVER_IP = null;
 	private InetAddress serverAddr = null;
 	
@@ -146,7 +145,6 @@ public class UDPNetClient implements IPIDClient {
 					sca.setSpeed(s);
 					
 					// set turn
-					turn = 1;
 					int turnPercentage = Integer.parseInt(param[2]);
 					sca.setTurn(turnPercentage);
 					
@@ -155,7 +153,39 @@ public class UDPNetClient implements IPIDClient {
 					Bundle bundle = new Bundle();
 					bundle.putInt("command", cmd);
 					bundle.putInt("speed", s);
-					bundle.putFloat("turn", turnPercentage);
+					bundle.putInt("turn", turnPercentage);
+					mesg.setData(bundle);
+					sca.handler.sendMessage(mesg);
+					
+				}
+				// remote command, Speed, and Turn request, course, duration
+				if(param.length == 5) {
+					
+					// set command
+					cmd = Integer.parseInt(param[0]);
+					
+					// set speed
+					int s = Integer.parseInt(param[1]);
+					sca.setSpeed(s);
+					
+					// set turn
+					int turnPercentage = Integer.parseInt(param[2]);
+					sca.setTurn(turnPercentage);
+					
+					// set course
+					int desiredCourse = Integer.parseInt(param[3]);
+					sca.setDesiredCourse(desiredCourse);
+					
+					int duration = Integer.parseInt(param[4]);
+					sca.setDuration(duration);
+					
+					Message mesg = sca.handler.obtainMessage();
+					Bundle bundle = new Bundle();
+					bundle.putInt("command", cmd);
+					bundle.putInt("speed", s);
+					bundle.putInt("turn", turnPercentage);
+					bundle.putInt("desiredcourse", desiredCourse);
+					bundle.putInt("duration", duration);
 					mesg.setData(bundle);
 					sca.handler.sendMessage(mesg);
 					
